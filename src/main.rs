@@ -29,8 +29,6 @@ fn main() {
     node.start_node();
 }
 
-
-
 pub fn get_port() -> u16 {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {

@@ -1,7 +1,9 @@
-use std::{sync::{Arc, Mutex}, thread, time::Duration};
+use std::{sync::{Arc, Mutex}, thread, time::{Duration, SystemTime}};
+
+use actix_web::rt::Runtime;
 
 use crate::{prelude::*, get_port};
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum NodeType {
   Follower,
   Leader,
@@ -10,8 +12,10 @@ pub enum NodeType {
 
 #[derive(Clone)]
 pub struct NodeInfo {
+  pub lastHearbeatReceived: SystemTime,
+  pub electionTimeout: Duration,
   pub term: i32,
-  address: String,
+  pub address: String,
   pub leader: String,
   pub node_type: NodeType,
   pub peers: Vec<String>,
@@ -21,7 +25,10 @@ pub struct NodeInfo {
 
 impl NodeInfo {
   pub fn new(address: String, leader: String) -> Self {
+    let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 300..500);
     NodeInfo {
+      lastHearbeatReceived: SystemTime::now(),
+      electionTimeout: Duration::from_millis(random_number),
       term: 0,
       address: address,
       leader: leader,
@@ -54,11 +61,21 @@ impl NodeInfo {
     }).unwrap();
   }
 
-  fn run_loop_thread(&self, context: web::Data<Arc<Mutex<NodeInfo>>>) {
+  async fn run_loop_thread(&self, context: web::Data<Arc<Mutex<NodeInfo>>>) {
       std::thread::spawn(move || {
           loop {
-            println!("{}", context.lock().unwrap().value.clone());
-            thread::sleep(Duration::from_secs(5));
+            let mut node = context.lock().unwrap();
+            match node.node_type {
+              NodeType::Follower =>  {
+                if SystemTime::now().duration_since(node.lastHearbeatReceived).unwrap() > node.electionTimeout {
+                  node.node_type = NodeType::Candidate;
+                  node.term += 1;
+                  let mut runtime = Runtime::new().unwrap();
+                  let results = runtime.block_on(post_many(node.peers.clone(), "/requestVote", ""));
+                }
+              },
+              _ => {}
+            }
           }
       });
   }

@@ -1,19 +1,27 @@
-use std::ops::Add;
+use std::{ops::Add, pin::Pin, error::Error};
 
-use reqwest::{Client, Response, Error, Result};
+use futures::Future;
+use reqwest::{Client, Response};
 
 use crate::prelude::*;
 
-pub async fn get(address: String, path: String) -> Result<Response> {
+pub async fn get(address: String, path: String) -> Result<Response, Box<dyn Error>> {
   let client = Client::new();
   let url = address.add(&path);
   let response = client.get(url).send().await?;
   Ok(response)
 }
 
-pub async fn post(address: String, path: String, body: String) -> Result<Response> {
+
+pub async fn post(address: &str, path: &str, body: &str) -> Result<Response, Box<dyn Error>> {
   let client = Client::new();
-  let url = address.add(&path);
-  let response = client.post(url).body(body).send().await?;
+  let url = format!("{}{}", address, path);
+  let response = client.post(&url).body(body.to_owned()).send().await?;
+  println!("Response: {:?}", response);
   Ok(response)
+}
+
+pub async fn post_many(addresses: Vec<String>, path: &str, body: &str) -> Vec<Result<Response, Box<dyn Error>>> {
+  let requests = addresses.iter().map(|address| post(address, path, body));
+  futures::future::join_all(requests).await
 }
