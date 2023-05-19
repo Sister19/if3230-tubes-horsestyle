@@ -1,5 +1,6 @@
-use actix_web::{Responder, HttpResponse};
+use crate::prelude::*;
 
-pub async fn ok() -> impl Responder {
-  HttpResponse::Ok().body("Service running")
+pub async fn ok(context: web::Data<Arc<Mutex<NodeInfo>>>) -> impl Responder {
+  let ctx = context.lock().unwrap();
+  HttpResponse::Ok().body(ctx.value.clone())
 }

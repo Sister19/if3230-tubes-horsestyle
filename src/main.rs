@@ -1,48 +1,40 @@
 mod routes;
 mod node;
 mod operation;
+mod request;
 mod prelude {
     pub use std::{env};
-    pub use actix_web::{HttpServer, main, App, web, rt::System};
+    pub use actix_web::{HttpServer, main, App, web, rt::System, HttpResponse, Responder};
+    pub use std::{ops::Add, error::Error, io};
+    pub use std::sync::{Arc, Mutex};
     pub use crate::routes::*;
     pub use crate::operation::*;
     pub use crate::node::*;
+    pub use crate::request::*;
 }
+
 
 use prelude::*;
-const DEFAULT_PORT: u16 = 8080;
+const DEFAULT_PORT: u16 = 8000;
+const DEFAULT_IP: &str = "127.0.0.1";
 
 fn main() {
-    node_loop();
-    node_service();
+    let address = format!("{}:{}", DEFAULT_IP, get_port());
+    let mut node: NodeInfo;
+    if let Ok(leader) = get_leader() {
+        node = NodeInfo::new(address.clone(), leader);
+    } else {
+        node = NodeInfo::new(address.clone(), address.clone());
+    }
+    node.start_node();
 }
 
-fn node_service() {
-    System::new().block_on(async {
-        let port = get_port();
-        println!("RUNNING PORT: {}", port);
-        HttpServer::new(|| {
-            App::new()
-            .route(OK_ROUTE, web::get().to(ok::ok))
-        })
-        .bind(("127.0.0.1", port))?
-        .run()
-        .await
-    }).unwrap();
-}
 
-fn node_loop() {
-    std::thread::spawn(|| {
-        loop {
-            
-        }
-    });
-}
 
-fn get_port() -> u16 {
+pub fn get_port() -> u16 {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        return 8080;
+        return DEFAULT_PORT;
     }
     args[1].parse().unwrap_or_else(|_| {
         println!("ARGS ERROR: Port cannot be read");
@@ -50,3 +42,12 @@ fn get_port() -> u16 {
         DEFAULT_PORT
     })
 }
+
+pub fn get_leader() -> Result<String, io::Error> {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 3 {
+        return Err(io::Error::new(io::ErrorKind::Other, "No leader address provided"));
+    }
+    Ok(args[2].parse().unwrap())
+}
+
