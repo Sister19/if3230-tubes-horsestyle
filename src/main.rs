@@ -11,6 +11,7 @@ mod prelude {
     pub use crate::operation::*;
     pub use crate::node::*;
     pub use crate::request::*;
+    pub use serde::*;
 }
 
 

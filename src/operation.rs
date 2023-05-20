@@ -1,4 +1,6 @@
-#[derive(Clone)]
+use crate::prelude::*;
+
+#[derive(Clone, PartialEq, Eq, Deserialize, Serialize, Debug)]
 pub enum OperationType {
   Queue,
   Dequeue,
@@ -7,8 +9,26 @@ pub enum OperationType {
   None
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct Operation {
-  operation_type: OperationType,
-  content: Option<String>
+  pub operation_type: OperationType,
+  pub content: Option<String>,
+  pub is_committed: bool 
+}
+
+impl Operation {
+  pub fn new(operation_type: OperationType, content: String) -> Self {
+    Operation {
+      operation_type: operation_type,
+      content: Some(content),
+      is_committed: false
+    }
+  }
+
+  pub fn isEqual(&self, operation: Operation) -> bool {
+    if (operation.operation_type == self.operation_type) && (operation.content == self.content) {
+      return true;
+    }
+    return false;
+  }
 }

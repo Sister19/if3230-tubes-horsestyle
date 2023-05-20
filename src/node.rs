@@ -1,16 +1,16 @@
-use std::{sync::{Arc, Mutex}, thread, time::{Duration, SystemTime}};
+use std::{sync::{Arc, Mutex}, thread, time::{Duration, SystemTime}, fmt};
 
 use actix_web::rt::Runtime;
 
 use crate::{prelude::*, get_port};
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum NodeType {
   Follower,
   Leader,
   Candidate
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NodeInfo {
   pub last_heartbeat_received: SystemTime,
   pub election_timeout: Duration,
@@ -20,7 +20,7 @@ pub struct NodeInfo {
   pub node_type: NodeType,
   pub peers: Vec<String>,
   pub log: Vec<(i32, Operation)>,
-  pub value: String
+  pub queue: Vec<String>,
 }
 
 impl NodeInfo {
@@ -35,12 +35,15 @@ impl NodeInfo {
       node_type: NodeType::Follower,
       peers: Vec::new(),
       log: Vec::new(),
-      value: String::new()
+      queue: Vec::new(),
     }
   }
 
   pub fn start_node(&mut self) {
     let context: web::Data<Arc<Mutex<NodeInfo>>> = web::Data::new(Arc::new(Mutex::new(self.clone())));
+    println!("term : {}", self.term);
+    println!("leader : {}", self.leader);
+    
     self.run_loop_thread(context.clone());
     self.run_service_thread(context.clone());
   }
@@ -54,6 +57,7 @@ impl NodeInfo {
             .app_data(context.clone())
             .route(OK_ROUTE, web::get().to(ok::ok))
             .route(OK_POST_ROUTE, web::post().to(ok_post::ok_post))
+            .route(OPERATION_ROUTE, web::post().to(operation::operation))
         })
         .bind(self.address.clone())?
         .run()
