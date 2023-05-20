@@ -13,7 +13,7 @@ pub enum OperationType {
 pub struct Operation {
   pub operation_type: OperationType,
   pub content: Option<String>,
-  pub is_committed: bool 
+  pub is_committed: Option<bool> 
 }
 
 impl Operation {
@@ -21,11 +21,11 @@ impl Operation {
     Operation {
       operation_type: operation_type,
       content: Some(content),
-      is_committed: false
+      is_committed: Some(false)
     }
   }
 
-  pub fn isEqual(&self, operation: Operation) -> bool {
+  pub fn is_equal(&self, operation: Operation) -> bool {
     if (operation.operation_type == self.operation_type) && (operation.content == self.content) {
       return true;
     }
