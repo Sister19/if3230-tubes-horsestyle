@@ -12,8 +12,8 @@ pub enum NodeType {
 
 #[derive(Clone)]
 pub struct NodeInfo {
-  pub lastHearbeatReceived: SystemTime,
-  pub electionTimeout: Duration,
+  pub last_heartbeat_received: SystemTime,
+  pub election_timeout: Duration,
   pub term: i32,
   pub address: String,
   pub leader: String,
@@ -27,8 +27,8 @@ impl NodeInfo {
   pub fn new(address: String, leader: String) -> Self {
     let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 300..500);
     NodeInfo {
-      lastHearbeatReceived: SystemTime::now(),
-      electionTimeout: Duration::from_millis(random_number),
+      last_heartbeat_received: SystemTime::now(),
+      election_timeout: Duration::from_millis(random_number),
       term: 0,
       address: address,
       leader: leader,
@@ -67,7 +67,7 @@ impl NodeInfo {
             let mut node = context.lock().unwrap();
             match node.node_type {
               NodeType::Follower =>  {
-                if SystemTime::now().duration_since(node.lastHearbeatReceived).unwrap() > node.electionTimeout {
+                if SystemTime::now().duration_since(node.last_heartbeat_received).unwrap() > node.election_timeout {
                   node.node_type = NodeType::Candidate;
                   node.term += 1;
                   let mut runtime = Runtime::new().unwrap();

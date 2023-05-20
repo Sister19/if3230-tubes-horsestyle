@@ -7,7 +7,7 @@ use crate::prelude::*;
 
 pub async fn get(address: String, path: String) -> Result<Response, Box<dyn Error>> {
   let client = Client::new();
-  let url = address.add(&path);
+  let url = format!("{}{}", address, path);
   let response = client.get(url).send().await?;
   Ok(response)
 }
