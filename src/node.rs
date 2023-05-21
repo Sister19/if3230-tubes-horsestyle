@@ -64,6 +64,7 @@ impl NodeInfo {
             .route(OK_POST_ROUTE, web::post().to(ok_post::ok_post))
             .route(OPERATION_ROUTE, web::post().to(operation::operation))
             .route(REQUEST_LOG_ROUTE, web::get().to(request_log::request_log))
+            .route(REQUEST_VOTE_ROUTE, web::post().to(request_vote::request_vote))
         })
         .bind(self.address.clone())?
         .run()
