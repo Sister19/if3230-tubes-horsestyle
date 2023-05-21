@@ -10,7 +10,7 @@ pub struct RegisterResponse {
 }
 
 pub async fn register(context: web::Data<Arc<Mutex<NodeInfo>>>, new_node: web::Json<NodeInfo>) -> impl Responder {
-    let ctx = context.lock().unwrap();
+    let mut ctx = context.lock().unwrap();
 
     println!("====================");
     println!("POST : REGISTER\n");
@@ -19,35 +19,32 @@ pub async fn register(context: web::Data<Arc<Mutex<NodeInfo>>>, new_node: web::J
 
     let mut res = false;
 
-    let operations: Vec<Operation> = Vec::new();
     let add_node_operation = &Operation {
         operation_type: OperationType::AddNode,
         content: Some(String::from(new_node.address.clone())),
         is_committed: None
     };
-
     if ctx.address == ctx.leader {
-        let mut runtime = Runtime::new().unwrap();
-
-        let addNodeRequest = &OperationRequest{
-            operations: operations.clone(),
+        let add_node_request = &OperationRequest{
+            operations: vec![add_node_operation.clone()],
             sender: ctx.address.clone(),
             previous_log_entry: None,
             term: ctx.term.clone(),
         };
 
-        // let requests = runtime.block_on(post_many(ctx.peers.clone(), "/operation", &serde_json::to_string(&addNodeRequest).unwrap()));
-        
+        let requests = post_many(ctx.peers.clone(), "/operation", &serde_json::to_string(&add_node_request).unwrap()).await;
+        ctx.peers.push(new_node.address.clone());
+        println!("{:?}", ctx.peers);
         // TODO: check log (consistent/not) if inconsistent do operation until consistent then send response
     }
     else {
         res = false;
     }
-
+    
     println!("Register node {} success.\n", new_node.address.clone());
 
     HttpResponse::Ok().body(serde_json::to_string(&RegisterResponse {
-        accepted: res,
+        accepted: true,
         node: ctx.clone()
     }).unwrap())
 }

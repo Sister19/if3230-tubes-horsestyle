@@ -18,7 +18,7 @@ pub async fn post(address: &str, path: &str, body: &str) -> Result<Response, Box
   let url = format!("http://{}{}", address, path);
   println!("{}", url);
   println!("{}", body);
-  match client.post(&url).body(body.to_owned()).send().await {
+  match client.post(&url).body(body.to_owned()).header("content-type", "application/json").send().await {
     Ok(response) => {
       println!("Response: {:?}", response);
       return Ok(response);
@@ -31,6 +31,9 @@ pub async fn post(address: &str, path: &str, body: &str) -> Result<Response, Box
 }
 
 pub async fn post_many(addresses: Vec<String>, path: &str, body: &String) -> Vec<Result<Response, Box<dyn Error>>> {
-  let requests = addresses.iter().map(|address| post(address, path, body));
+  let requests = addresses.iter().map(|address| {
+    println!("{}", body);
+    post(address, path, body)
+  } );
   futures::future::join_all(requests).await
 }
