@@ -32,15 +32,15 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
   println!("Sender : {}", sender);
   println!("Term : {}\n", term);
 
-  if (sender != ctx.leader) {
+  if sender != ctx.leader {
     result = false;
     note = format!("Error : Sender is not a Leader");
   } else {
-    if (ctx.term == term) {
-      if (ctx.node_type == NodeType::Candidate) {
+    if ctx.term == term {
+      if ctx.node_type == NodeType::Candidate {
         result = false;
         note = format!("Error : I'm a new candidate");
-      } else if (ctx.node_type == NodeType::Follower) {
+      } else if ctx.node_type == NodeType::Follower {
         // kalo lagi election leader baru?
         
         // kalo aman
@@ -48,7 +48,6 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
         // jika last log udah sama
 
         let mut flag = false;
-        let mut new_idx: i32 = 0;
         if ctx.log.len() == 0 {
           flag = true;
         } else {
@@ -60,11 +59,12 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
             note = format!("Error : Different last log");
           }
         }
-
+        
         println!("Operations running ...\n");
-
+        
         if flag {
-
+          
+          let mut new_idx: i32;
           for operation in operations {
             new_idx = ctx.log.len() as i32;
           
@@ -98,11 +98,11 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
             } else if operation.operation_type == OperationType::Commit {
               
               let last_log_idx = ctx.log.len()-1;
-              if (ctx.log[last_log_idx].1.operation_type == OperationType::Queue) {
+              if ctx.log[last_log_idx].1.operation_type == OperationType::Queue {
                 let el = ctx.log[last_log_idx].1.content.clone().unwrap();
                 ctx.queue.push(el.clone());
                 println!("Queue : enqueue \"{}\" to the queue\n", el);
-              } else if (ctx.log[last_log_idx].1.operation_type == OperationType::Dequeue) {
+              } else if ctx.log[last_log_idx].1.operation_type == OperationType::Dequeue {
                 let el = ctx.queue.remove(0);
                 println!("Queue : dequeue {} from the queue\n", el);
               }
