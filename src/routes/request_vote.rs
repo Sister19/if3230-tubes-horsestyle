@@ -31,6 +31,7 @@ pub async fn request_vote(context: web::Data<Arc<Mutex<NodeInfo>>>, reqvote_requ
         let last_log = ctx.log[ctx.log.len() - 1].clone();
         if (last_log_entry.clone().unwrap().0 <= last_log.0) {
             res == true;
+            print!("Request vote sent.")
         }
         else {
             res = false;
