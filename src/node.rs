@@ -41,16 +41,15 @@ impl NodeInfo {
 
   pub fn start_node(&mut self) {
     let context: web::Data<Arc<Mutex<NodeInfo>>> = web::Data::new(Arc::new(Mutex::new(self.clone())));
-    let mut node = context.lock().unwrap();
-    
-    if node.address == node.leader {
-      node.node_type = NodeType::Leader;
+        
+    if self.address == self.leader {
+      self.node_type = NodeType::Leader;
     } else {
       println!("====================");
       println!("Registering this node to the term ...\n");
       
       let mut runtime = Runtime::new().unwrap();
-      let result = runtime.block_on(post(&node.leader, REGISTER_ROUTE, &serde_json::to_string(&node.clone()).unwrap()));
+      let result = runtime.block_on(post(&self.leader, REGISTER_ROUTE, &serde_json::to_string(&self.clone()).unwrap()));
   
       match result {
         Ok(sk) => { 
