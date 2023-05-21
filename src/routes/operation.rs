@@ -2,10 +2,10 @@ use crate::prelude::*;
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct OperationRequest {
-  operations: Vec<Operation>,
-  sender: String,
-  previous_log_entry: Option<(i32, Operation)>,
-  term: i32
+  pub operations: Vec<Operation>,
+  pub sender: String,
+  pub previous_log_entry: Option<(i32, Operation)>,
+  pub term: i32
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]

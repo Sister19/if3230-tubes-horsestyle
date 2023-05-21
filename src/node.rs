@@ -3,14 +3,14 @@ use std::{sync::{Arc, Mutex}, thread, time::{Duration, SystemTime}, fmt};
 use actix_web::rt::Runtime;
 
 use crate::{prelude::*, get_port};
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 pub enum NodeType {
   Follower,
   Leader,
   Candidate
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NodeInfo {
   pub last_heartbeat_received: SystemTime,
   pub election_timeout: Duration,
@@ -41,7 +41,31 @@ impl NodeInfo {
 
   pub fn start_node(&mut self) {
     let context: web::Data<Arc<Mutex<NodeInfo>>> = web::Data::new(Arc::new(Mutex::new(self.clone())));
+    let mut node = context.lock().unwrap();
     
+    if node.address == node.leader {
+      node.node_type = NodeType::Leader;
+    } else {
+      println!("====================");
+      println!("Registering this node to the term ...\n");
+      
+      let mut runtime = Runtime::new().unwrap();
+      let result = runtime.block_on(post(&node.leader, REGISTER_ROUTE, &serde_json::to_string(&node.clone()).unwrap()));
+  
+      match result {
+        Ok(sk) => { 
+          println!("{:?}", sk);
+        },
+        Err(e) => {
+          // ... sk is not available, and e explains why ...
+        }
+        
+      }
+
+      println!("Node registered. \n");
+
+    }
+
     println!("====================");
     println!("Node Info : \n");
     println!("- Addresss : {}", self.address);
@@ -83,7 +107,7 @@ impl NodeInfo {
                   node.node_type = NodeType::Candidate;
                   node.term += 1;
                   let mut runtime = Runtime::new().unwrap();
-                  let results = runtime.block_on(post_many(node.peers.clone(), "/requestVote", ""));
+                  let results = runtime.block_on(post_many(node.peers.clone(), "/requestVote", &String::from("")));
                 }
               },
               _ => {}
