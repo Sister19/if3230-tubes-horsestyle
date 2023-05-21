@@ -41,12 +41,8 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
         result = false;
         note = format!("Error : I'm a new candidate");
       } else if ctx.node_type == NodeType::Follower {
-        // kalo lagi election leader baru?
-        
-        // kalo aman
-        
-        // jika last log udah sama
 
+        // cek last log
         let mut flag = false;
         if ctx.log.len() == 0 {
           flag = true;
@@ -62,6 +58,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
         
         println!("Operations running ...\n");
         
+        // jika last log sama
         if flag {
           
           let mut new_idx: i32;
@@ -92,7 +89,9 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
               
               let new_leader = operation.clone().content.unwrap();
               let old_leader = ctx.leader.clone();
+              let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 300..500);
               ctx.leader = new_leader.clone();
+              ctx.election_timeout = Duration::from_millis(random_number);
               println!("ChangeLeader : change leader from \"{}\" to \"{}\"\n", old_leader, new_leader);
             
             } else if operation.operation_type == OperationType::Commit {
