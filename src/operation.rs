@@ -5,6 +5,7 @@ pub enum OperationType {
   Queue,
   Dequeue,
   AddNode,
+  ChangeLeader,
   Commit,
   None
 }

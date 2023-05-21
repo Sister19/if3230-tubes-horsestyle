@@ -88,6 +88,13 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
               ctx.peers.push(node.clone());
               println!("AddNode : add new node \"{}\" to peer\n", node);
             
+            } else if operation.operation_type == OperationType::ChangeLeader {
+              
+              let new_leader = operation.clone().content.unwrap();
+              let old_leader = ctx.leader.clone();
+              ctx.leader = new_leader.clone();
+              println!("ChangeLeader : change leader from \"{}\" to \"{}\"\n", old_leader, new_leader);
+            
             } else if operation.operation_type == OperationType::Commit {
               
               let last_log_idx = ctx.log.len()-1;
