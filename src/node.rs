@@ -2,7 +2,7 @@ use std::{sync::{Arc, Mutex}, thread, time::{Duration, SystemTime}, fmt};
 
 use actix_web::rt::Runtime;
 
-use crate::{prelude::*, get_port};
+use crate::{prelude::*, get_port, routes::register::{RegisterRequest, RegisterResponse}};
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 pub enum NodeType {
   Follower,
@@ -40,23 +40,40 @@ impl NodeInfo {
   }
 
   pub fn start_node(&mut self) {
-    let context: web::Data<Arc<Mutex<NodeInfo>>> = web::Data::new(Arc::new(Mutex::new(self.clone())));
-        
+
     if self.address == self.leader {
       self.node_type = NodeType::Leader;
     } else {
       println!("====================");
       println!("Registering this node to the term ...\n");
       
+      let register_request = &RegisterRequest {
+        sender: self.address.clone(),
+        term: self.term.clone()
+      };
+
       let mut runtime = Runtime::new().unwrap();
-      let result = runtime.block_on(post(&self.leader, REGISTER_ROUTE, &serde_json::to_string(&self.clone()).unwrap()));
+      let result = runtime.block_on(post(&self.leader, REGISTER_ROUTE, &serde_json::to_string(&register_request).unwrap()));
   
       match result {
         Ok(sk) => { 
-          println!("{:?}", sk);
+          System::new().block_on(async {
+            let register_response = sk.json::<RegisterResponse>().await.unwrap();
+            // println!("{:?}", register_response);
+
+            if register_response.accepted {
+              self.term = register_response.term.clone();
+              self.peers.push(self.leader.clone());
+              for peer in register_response.peers {
+                self.peers.push(peer.clone());
+              }
+              self.log = register_response.log.clone();
+              self.queue = register_response.queue.clone();
+            }
+          });
         },
         Err(e) => {
-          // ... sk is not available, and e explains why ...
+          print!("{:?}", e);
         }
         
       }
@@ -67,17 +84,21 @@ impl NodeInfo {
 
     println!("====================");
     println!("Node Info : \n");
-    println!("- Addresss : {}", self.address);
-    println!("- Term : {}", self.term);
-    println!("- Leader : {}", self.leader);
+    println!("- Addresss : {}", self.address.clone());
+    println!("- Term : {}", self.term.clone());
+    println!("- Leader : {}", self.leader.clone());
+    println!("- Peers : {:?}", self.peers.clone());
     println!("====================");
     
+    let context: web::Data<Arc<Mutex<NodeInfo>>> = web::Data::new(Arc::new(Mutex::new(self.clone())));
+
     self.run_loop_thread(context.clone());
     self.run_service_thread(context.clone());
   }
   
   fn run_service_thread(&mut self, context: web::Data<Arc<Mutex<NodeInfo>>>) {
     System::new().block_on(async {
+        
         let port = get_port();
         println!("RUNNING PORT: {}\n", port);
         HttpServer::new(move || {
@@ -98,7 +119,7 @@ impl NodeInfo {
 
   async fn run_loop_thread(&self, context: web::Data<Arc<Mutex<NodeInfo>>>) {
       std::thread::spawn(move || {
-          loop {
+        loop {
             let mut node = context.lock().unwrap();
             match node.node_type {
               NodeType::Follower =>  {

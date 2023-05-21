@@ -10,8 +10,8 @@ pub struct OperationRequest {
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct OperationResponse {
-  accepted: bool,
-  note: String
+  pub accepted: bool,
+  pub note: String
 }
 
 pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_request: web::Json<OperationRequest>) -> impl Responder {
@@ -83,7 +83,8 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
               
               let node = operation.clone().content.unwrap();
               ctx.peers.push(node.clone());
-              println!("AddNode : add new node \"{}\" to peer\n", node);
+              println!("AddNode : add new node \"{}\" to peers", node);
+              println!("Peers : {:?}\n", ctx.peers.clone());
             
             } else if operation.operation_type == OperationType::ChangeLeader {
               
@@ -106,7 +107,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
                 println!("Queue : dequeue {} from the queue\n", el);
               }
               ctx.log[last_log_idx].1.is_committed = Some(true);
-              println!("Commit : Commit applied \nQueue : \"{}\"\n", ctx.queue.join(""));
+              println!("Commit : Commit applied \nQueue : {:?}\n", ctx.queue);
   
             } else if operation.operation_type == OperationType::None {
               println!("None\n");
@@ -121,7 +122,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
 
       } else {
         result = false;
-        note = format!("Error : Unresolved error");
+        note = format!("Error : This node is a leader");
       }
     } else {
       result = false;
