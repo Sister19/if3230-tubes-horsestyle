@@ -5,6 +5,7 @@ use crate::prelude::*;
 #[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, Eq)]
 pub enum OperationError{
   InconsistentLog,
+  InvalidOperation,
   None
 }
 
@@ -124,7 +125,18 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
                 ctx.queue.push(el.clone());
                 println!("Queue : enqueue \"{}\" to the queue\n", el);
               } else if ctx.log[last_log_idx].1.operation_type == OperationType::Dequeue {
-                let el = ctx.queue.remove(0);
+                let mut el = String::new();
+                if ctx.queue.len() > 0 {
+                  el = ctx.queue.remove(0);
+                } else {
+                  println!("Queue : queue is empty\n");
+                  return HttpResponse::Ok().body(serde_json::to_string(&OperationResponse { 
+                    accepted: false,
+                    note: String::from("Queue is empty"),
+                    address: ctx.address.clone(),
+                    flag: OperationError::InvalidOperation
+                  }).unwrap());
+                }
                 println!("Queue : dequeue {} from the queue\n", el);
               }
               ctx.log[last_log_idx].1.is_committed = Some(true);
