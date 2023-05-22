@@ -48,7 +48,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
     result = false;
     note = format!("Error : Sender is not a Leader");
   } else {
-    if ctx.term == term {
+    if ctx.term <= term {
       if ctx.node_type == NodeType::Candidate {
         result = false;
         note = format!("Error : I'm a new candidate");
@@ -60,6 +60,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
         if ctx.log.len() == 0 {
           if previous_log_entry.is_none() {
             flag = true;
+            ctx.term = term.clone();
           } else {
             flag = false;
             note = format!("Error : Different last log");
@@ -68,6 +69,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
           let last_log = ctx.log[ctx.log.len()-1].clone();
           if (previous_log_entry.clone().unwrap().0 == last_log.0) && (previous_log_entry.clone().unwrap().1.is_equal(last_log.1.clone())) {
             flag = true;
+            ctx.term = term.clone();
           } else {
             result = false;
             err_operation = OperationError::InconsistentLog;
@@ -142,7 +144,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
       }
     } else {
       result = false;
-      note = format!("Error : Different owner term ({}) from sender term ({})", ctx.term, term);
+      note = format!("Error : Sender's term ({}) lower than this node ({})", term, ctx.term);
     }
   }
 
