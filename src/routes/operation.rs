@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, Eq)]
 pub enum OperationError{
   InconsistentLog,
   None
@@ -42,6 +42,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
   println!("Term : {}\n", term);
   // println!("Log : {:?}\n", ctx.log.clone());
   // println!("Prev Log : {:?}\n", previous_log_entry.clone());
+  // println!("{:?}\n", operation_request);
 
   if sender != ctx.leader {
     result = false;

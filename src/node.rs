@@ -110,6 +110,7 @@ impl NodeInfo {
             .route(REQUEST_LOG_ROUTE, web::get().to(request_log::request_log))
             .route(REQUEST_VOTE_ROUTE, web::post().to(request_vote::request_vote))
             .route(REGISTER_ROUTE, web::post().to(register::register))
+            .route(EXECUTE_ROUTE, web::post().to(execute::execute))
         })
         .bind(self.address.clone())?
         .run()
@@ -129,6 +130,9 @@ impl NodeInfo {
                   let mut runtime = Runtime::new().unwrap();
                   let results = runtime.block_on(post_many(node.peers.clone(), "/requestVote", &String::from("")));
                 }
+              },
+              NodeType::Leader => {
+                // heartbeat
               },
               _ => {}
             }
