@@ -26,7 +26,7 @@ pub struct NodeInfo {
 
 impl NodeInfo {
   pub fn new(address: String, leader: String) -> Self {
-    let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 1000..5000);
+    let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 3000..7000);
     let time = SystemTime::now();
     NodeInfo {
       last_heartbeat_received: time,

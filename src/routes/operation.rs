@@ -110,7 +110,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
               ctx.election_status = false;
               let new_leader = operation.clone().1.content.unwrap();
               let old_leader = ctx.leader.clone();
-              let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 2000..3000);
+              let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 3000..7000);
               ctx.leader = new_leader.clone();
               ctx.election_timeout = Duration::from_millis(random_number);
               

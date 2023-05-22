@@ -36,6 +36,7 @@ pub async fn heartbeat(context: web::Data<Arc<Mutex<NodeInfo>>>, heartbeat_reque
     if (ctx.node_type == NodeType::Follower) {
       ctx.last_heartbeat_received = SystemTime::now();
       resp = true;
+      println!("heartbeat from node {} accepted", address);
     } else{
       resp = false;
     }
