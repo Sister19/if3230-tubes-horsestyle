@@ -54,11 +54,11 @@ pub async fn register(context: web::Data<Arc<Mutex<NodeInfo>>>, new_node: web::J
             term: ctx.term.clone(),
         };
 
-        let requests = post_many(ctx.peers.clone(), OPERATION_ROUTE, &serde_json::to_string(&add_node_request).unwrap()).await;
+        let responses = post_many(ctx.peers.clone(), OPERATION_ROUTE, &serde_json::to_string(&add_node_request).unwrap()).await;
         
         let mut count = 0;
-        for request in requests {
-          match request {
+        for response in responses {
+          match response {
             Ok(sk) => {
               let operation_response = sk.json::<OperationResponse>().await.unwrap();
               if operation_response.accepted {
