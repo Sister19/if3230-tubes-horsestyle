@@ -91,14 +91,46 @@ impl NodeInfo {
     println!("====================");
     
     let context: web::Data<Arc<Mutex<NodeInfo>>> = web::Data::new(Arc::new(Mutex::new(self.clone())));
-
-    self.run_loop_thread(context.clone());
-    self.run_service_thread(context.clone());
+    let context_service = context.clone();
+    std::thread::spawn(move || {
+      loop {
+          let mut node = context.lock().unwrap();
+          match node.node_type {
+            NodeType::Follower =>  {
+              if SystemTime::now().duration_since(node.last_heartbeat_received).unwrap() > node.election_timeout {
+                node.node_type = NodeType::Candidate;
+                node.term += 1;
+                let mut runtime = Runtime::new().unwrap();
+                let results = runtime.block_on(post_many(node.peers.clone(), "/requestVote", &String::from("")));
+              }
+            },
+            NodeType::Leader => {
+              let mut heartbeat_request = HeartbeatRequest {
+                term: node.term.clone()
+              };
+              let mut runtime = Runtime::new().unwrap();
+              let results = runtime.block_on(post_many(node.peers.clone(), HEARTBEAT_ROUTE, &serde_json::to_string(&heartbeat_request).unwrap()));
+              for result in results {
+                match result {
+                  Ok(sk) => {
+                    println!("{:?}", sk);
+                  },
+                  Err(e) => {
+                    println!("{:?}", e);
+                  }
+                }
+              }
+            },
+            _ => {}
+          }
+        }
+    });
+    self.run_service_thread(context_service.clone());
   }
   
   fn run_service_thread(&mut self, context: web::Data<Arc<Mutex<NodeInfo>>>) {
     System::new().block_on(async {
-        
+        println!("Oke");
         let port = get_port();
         println!("RUNNING PORT: {}\n", port);
         HttpServer::new(move || {
@@ -118,42 +150,4 @@ impl NodeInfo {
         .await
     }).unwrap();
   }
-
-  async fn run_loop_thread(&self, context: web::Data<Arc<Mutex<NodeInfo>>>) {
-      std::thread::spawn(move || {
-        loop {
-            let mut node = context.lock().unwrap();
-            match node.node_type {
-              NodeType::Follower =>  {
-                if SystemTime::now().duration_since(node.last_heartbeat_received).unwrap() > node.election_timeout {
-                  node.node_type = NodeType::Candidate;
-                  node.term += 1;
-                  let mut runtime = Runtime::new().unwrap();
-                  let results = runtime.block_on(post_many(node.peers.clone(), "/requestVote", &String::from("")));
-                }
-              },
-              NodeType::Leader => {
-                let mut heartbeat_request = HeartbeatRequest {
-                  term: node.term.clone()
-                };
-                let mut runtime = Runtime::new().unwrap();
-                let results = runtime.block_on(post_many(node.peers.clone(), HEARTBEAT_ROUTE, &serde_json::to_string(&heartbeat_request).unwrap()));
-                for result in results {
-                  match result {
-                    Ok(sk) => {
-                      println!("{:?}", sk);
-                    },
-                    Err(e) => {
-                      println!("{:?}", e);
-                    }
-                  }
-                }
-              },
-              _ => {}
-            }
-          }
-      });
-  }
-  
-
 }
