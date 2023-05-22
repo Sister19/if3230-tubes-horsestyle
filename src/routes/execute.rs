@@ -25,6 +25,7 @@ pub struct ExecuteRequest{
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct ExecuteResponse{
   pub accepted: bool,
+  pub content: Option<String>,
 }
 
 // Prekondisi : operation_to_execute nya hanya Queue dan Dequeue
@@ -34,13 +35,13 @@ pub async fn execute(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_to_exec
   println!("====================");
   println!("EXECUTE : Operation\n");
   println!("Operation : {:?}", operation_to_execute.operation_type.clone());
-  println!("Content : {:?}\n", operation_to_execute.content.clone().unwrap());
+  println!("Content : {:?}\n", operation_to_execute.content.clone().unwrap_or("".to_string()));
 
   let term = ctx.term.clone();
   let mut result = false;
   let operation = &Operation {
     operation_type: operation_to_execute.operation_type.clone(),
-    content: Some(operation_to_execute.content.clone().unwrap()),
+    content: operation_to_execute.content.clone(),
     is_committed: None
   };
   
@@ -50,7 +51,7 @@ pub async fn execute(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_to_exec
   } else {
     last_log = None;
   }
-
+  let mut dequeue_content = None;
   if ctx.node_type == NodeType::Leader {
     // kirim /operation ke semua follower
     let mut operation_request = OperationRequest{
@@ -64,7 +65,6 @@ pub async fn execute(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_to_exec
 
     let mut responses = post_many(ctx.peers.clone(), OPERATION_ROUTE, &serde_json::to_string(&operation_request).unwrap()).await;
     ctx.log.push((term, operation.clone()));
-
     let mut success = 0;
     let mut count = 0;
     for mut response in responses {
@@ -144,6 +144,7 @@ pub async fn execute(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_to_exec
         println!("Queue : enqueue \"{}\" to the queue\n", el);
       } else if ctx.log[last_log_idx].1.operation_type == OperationType::Dequeue {
         let el = ctx.queue.remove(0);
+        dequeue_content = Some(el.clone());
         println!("Queue : dequeue {} from the queue\n", el);
       }
       ctx.log[last_log_idx].1.is_committed = Some(true);
@@ -175,6 +176,7 @@ pub async fn execute(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_to_exec
 
   // response
   HttpResponse::Ok().body(serde_json::to_string(&ExecuteResponse { 
-    accepted: result
-    }).unwrap())
+    accepted: result,
+    content: dequeue_content
+  }).unwrap())
 }

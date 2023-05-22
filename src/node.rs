@@ -101,7 +101,6 @@ impl NodeInfo {
     std::thread::spawn(move || {
       loop {
         let mut node = context.lock().unwrap();
-        println!("heh");
         match node.node_type {
           NodeType::Follower =>  {
             check_election_timeout(&mut node);
@@ -147,15 +146,12 @@ fn heartbeat(mut node: std::sync::MutexGuard<NodeInfo>) {
   };
   let mut runtime = Runtime::new().unwrap();
   let results = runtime.block_on(post_many(node.peers.clone(), HEARTBEAT_ROUTE, &serde_json::to_string(&heartbeat_request).unwrap()));
-  println!("{:?}", node.peers);
   let mut i = 0;
   let mut new_peers = Vec::new();
   for result in results {
     match result {
       Ok(sk) => {
         let response = runtime.block_on(sk.json::<HeartbeatResponse>()).unwrap();
-        println!("{:?}", response);
-        new_peers.push(node.peers[i].clone());
       },
       Err(e) => {
       }
