@@ -1,14 +1,16 @@
+use std::time::SystemTime;
 use std::{io, path::Path, fs::File, cell::Cell, error::Error, ops::Add};
 use std::io::Stdout;
 
+use actix_web::cookie::time::Duration;
 use crossterm::{execute, terminal::{ClearType, EnterAlternateScreen, Clear, LeaveAlternateScreen, enable_raw_mode, disable_raw_mode}, event::{DisableMouseCapture, Event, self}};
 use futures::FutureExt;
 use reqwest::{Response, Client};
 use tui::{backend::CrosstermBackend, Terminal, widgets::{Block, Borders, ListItem, Row, Table, TableState}, text::{Spans, Span}, style::{Style, Modifier}, layout::{Constraint, Layout, Direction}, symbols::block, Frame};
 use tui::style::Color;
 use tui::symbols::DOT;
-use tui::widgets::Tabs;
-
+use tui::widgets::{Tabs, Paragraph, Wrap};
+pub const REQUEST_LOG_ROUTE: &str = "/requestLog";
 enum Pages {
   NodeList,
   NodeDetail,
@@ -20,7 +22,8 @@ pub struct GlobalState {
   leader: i32,
   current_page: Pages,
   table_state: TableState,
-  selected_node: Option<Node>
+  selected_node: Option<Node>,
+  last_updated: SystemTime
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +31,8 @@ pub struct Node {
   name: String,
   address: String,
   is_tracked: bool,
+  log: String,
+  status: bool
 }
 
 const DEFAULT_CSV: &str = "nodes.csv";
@@ -45,6 +50,7 @@ async fn main() -> Result<(), io::Error>{
     current_page: Pages::NodeList,
     table_state: TableState::default(),
     selected_node: None,
+    last_updated: SystemTime::now()
   };
   
   enable_raw_mode()?;
@@ -67,6 +73,8 @@ async fn main() -> Result<(), io::Error>{
           name,
           address,
           is_tracked,
+          log: String::new(),
+          status: false
         });
       },
       _ => {
@@ -77,17 +85,24 @@ async fn main() -> Result<(), io::Error>{
 
   state.table_state.select(Some(0));
   loop {
-    let mut rows: Vec<Row> = Vec::new();
-    for a in &state.nodes {
-      rows.push(node_row(&a).await);
+    if state.last_updated.elapsed().unwrap() > Duration::milliseconds(1000) {
+      state.last_updated = SystemTime::now();
+      for node in &mut state.nodes {
+        node.status = get_ok(node.address.clone(), "/ok".to_string()).await.unwrap();
+      }
     }
+    let mut rows: Vec<Row> = Vec::new();
+    for a in state.nodes.clone() {
+      rows.push(node_row(&a));
+    }
+
     terminal.draw(|f| {
       match state.current_page {
         Pages::NodeList => {
           node_list_page(&mut state, rows, f);
         },
         Pages::NodeDetail => {
-          // node_detail_page(&mut state, rows, f);
+          node_detail_page(&mut state, f);
         },
         Pages::AddNode => {
           let size = f.size();
@@ -141,7 +156,9 @@ async fn main() -> Result<(), io::Error>{
           }
         },
         event::KeyCode::Enter => {
-          state.selected_node = Some(state.nodes[state.table_state.selected().unwrap()].clone());
+          let selected_idx = state.table_state.selected().unwrap();
+          state.nodes[selected_idx].log = get_log(state.nodes[selected_idx].address.clone()).await;
+          state.selected_node = Some(state.nodes[selected_idx].clone());
           state.current_page = Pages::NodeDetail;
         },
         _ => {}
@@ -198,25 +215,60 @@ fn menu(mut state: &mut GlobalState) -> Tabs {
     .divider(DOT)
 }
 
-async fn node_row(node: &Node) -> Row<'static> {
-  let response = get(node.address.clone(), "/ok".to_string()).await.unwrap();
+fn node_detail_page(mut state: &mut GlobalState, f: &mut Frame<CrosstermBackend<&mut Stdout>>){
+  let divs = Layout::default().direction(Direction::Vertical)
+    .constraints([Constraint::Length(8), Constraint::Length(3)].as_ref())
+    .split(f.size());
+  let identity_block = Block::default()
+    .title("Node Info")
+    .borders(Borders::ALL);
+  let node_info_text = Paragraph::new(
+    format!("Name: {}\nAddress: {}\nLog:\n{}", 
+      state.selected_node.as_ref().unwrap().name, 
+      state.selected_node.as_ref().unwrap().address,
+      state.selected_node.as_ref().unwrap().log))
+    .block(identity_block)
+    .wrap(Wrap { trim: true });
+  f.render_widget(node_info_text, divs[0]);
+}
+
+fn node_row(node: &Node) -> Row<'static> {
   return Row::new(vec![
     Span::styled(node.name.clone(), Style::default().add_modifier(Modifier::BOLD)),
     Span::raw(node.address.clone()),
-    Span::raw(response.to_string()),
+    Span::raw(node.status.to_string()),
   ]);
 }
 
-async fn get(address: String, path: String) -> Result<bool, Box<dyn Error>> {
+async fn get_log(address: String) -> String {
+  let response = get_body(address.clone(), REQUEST_LOG_ROUTE.to_string()).await.unwrap();
+  if response == String::new() {
+    return "No log".to_string();
+  }
+  return response;
+}
+
+async fn get_ok(address: String, path: String) -> Result<bool, Box<dyn Error>> {
   let client = Client::new();
   let url = format!("{}{}", address, path);
   match client.get(url).send().await {
     Ok(response) => {
-      println!("Success: {:?}", response);
       Ok(true)
     },
     Err(err) => {
       Ok(false)
+    },
+  }
+}
+async fn get_body(address: String, path: String) -> Result<String, Box<dyn Error>> {
+  let client = Client::new();
+  let url = format!("{}{}", address, path);
+  match client.get(url).send().await {
+    Ok(response) => {
+      Ok(response.text().await.unwrap())
+    },
+    Err(err) => {
+      Ok(String::new())
     },
   }
 }

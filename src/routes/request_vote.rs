@@ -16,7 +16,7 @@ pub async fn request_vote(context: web::Data<Arc<Mutex<NodeInfo>>>, reqvote_requ
     let ctx = context.lock().unwrap();
 
     let candidate = reqvote_request.candidate.clone();
-    let last_log_entry = reqvote_request.last_log_entry.clone();
+    let last_log_entry: Option<(i32, Operation)> = reqvote_request.last_log_entry.clone();
     let term = reqvote_request.term.clone();
 
     // initialize response
