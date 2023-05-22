@@ -143,7 +143,15 @@ pub async fn execute(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_to_exec
         ctx.queue.push(el.clone());
         println!("Queue : enqueue \"{}\" to the queue\n", el);
       } else if ctx.log[last_log_idx].1.operation_type == OperationType::Dequeue {
-        let el = ctx.queue.remove(0);
+        let mut el = "".to_string();
+        if ctx.queue.len() > 0 {
+          el = ctx.queue.remove(0);
+        } else {
+          return HttpResponse::Ok().body(serde_json::to_string(&ExecuteResponse { 
+            accepted: false,
+            content: Some("Queue is empty".to_string())
+          }).unwrap());
+        }
         dequeue_content = Some(el.clone());
         println!("Queue : dequeue {} from the queue\n", el);
       }
@@ -168,7 +176,11 @@ pub async fn execute(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_to_exec
       }
       ctx.log.push((term, commit_operation.clone()));
       post_many(ctx.peers.clone(), OPERATION_ROUTE, &serde_json::to_string(&commit_request).unwrap()).await;
-      result = true;
+      if ctx.queue.len() > 0 {
+        result = true;
+      } else {
+        result = false;
+      }
     }
   }
 

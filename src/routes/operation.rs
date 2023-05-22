@@ -70,7 +70,10 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
           }
         } else {
           let last_log = ctx.log[ctx.log.len()-1].clone();
-          if (previous_log_entry.clone().unwrap().0 == last_log.0) && (previous_log_entry.clone().unwrap().1.is_equal(last_log.1.clone())) {
+          if previous_log_entry.is_none() {
+            flag = true;
+            ctx.term = term.clone();
+          } else if (previous_log_entry.clone().unwrap().0 == last_log.0) && (previous_log_entry.clone().unwrap().1.is_equal(last_log.1.clone())) {
             flag = true;
             ctx.term = term.clone();
           } else {
@@ -110,7 +113,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
               ctx.election_status = false;
               let new_leader = operation.clone().1.content.unwrap();
               let old_leader = ctx.leader.clone();
-              let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 3000..7000);
+              let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 2000..3000);
               ctx.leader = new_leader.clone();
               ctx.election_timeout = Duration::from_millis(random_number);
               

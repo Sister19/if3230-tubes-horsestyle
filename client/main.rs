@@ -89,7 +89,6 @@ async fn main() {
             }
           };
         }
-        println!("Input: {}", input);
     }
 }
 
