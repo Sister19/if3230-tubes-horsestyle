@@ -1,3 +1,5 @@
+use std::time::{SystemTimeError, SystemTime};
+
 use crate::prelude::*;
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, Eq)]
@@ -30,7 +32,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
   let sender = operation_request.sender.clone();
   let previous_log_entry = operation_request.previous_log_entry.clone();
   let term = operation_request.term.clone();
-  
+
   // initialize response
   let mut result = false;
   let mut note = String::new();
@@ -40,11 +42,11 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
   println!("POST : Operation\n");
   println!("Sender : {}", sender);
   println!("Term : {}\n", term);
-  // println!("Log : {:?}\n", ctx.log.clone());
-  // println!("Prev Log : {:?}\n", previous_log_entry.clone());
+  println!("Log : {:?}\n", ctx.log.clone());
+  println!("Prev Log : {:?}\n", previous_log_entry.clone());
   // println!("{:?}\n", operation_request);
 
-  if sender != ctx.leader {
+  if sender != ctx.leader && !ctx.election_status {
     result = false;
     note = format!("Error : Sender is not a Leader");
   } else {
@@ -76,7 +78,8 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
             note = format!("Error : Different last log");
           }
         }
-                
+        
+        println!("{:?}", flag);
         // jika last log sama
         if flag {
 
@@ -103,11 +106,14 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
             
             } else if operation.1.operation_type == OperationType::ChangeLeader {
               
+              ctx.election_status = false;
               let new_leader = operation.clone().1.content.unwrap();
               let old_leader = ctx.leader.clone();
-              let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 300..500);
+              let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 2000..3000);
               ctx.leader = new_leader.clone();
               ctx.election_timeout = Duration::from_millis(random_number);
+              
+              println!("{:?}", ctx.term);
               println!("ChangeLeader : change leader from \"{}\" to \"{}\"\n", old_leader, new_leader);
             
             } else if operation.1.operation_type == OperationType::Commit {
@@ -128,7 +134,9 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
               println!("None\n");
             }
             
-            ctx.log.push(new_operation);
+            if operation.1.operation_type != OperationType::None {
+              ctx.log.push(new_operation);
+            } 
             
           }
 
@@ -148,11 +156,13 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
     }
   }
 
+  ctx.last_heartbeat_received = SystemTime::now();
+
   // response
   HttpResponse::Ok().body(serde_json::to_string(&OperationResponse { 
     accepted: result,
     note: note,
     address: ctx.address.clone(),
     flag: err_operation
-    }).unwrap())
+  }).unwrap())
 }

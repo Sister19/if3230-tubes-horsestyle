@@ -2,7 +2,7 @@ use std::{sync::{Arc, Mutex}, thread, time::{Duration, SystemTime}, fmt};
 
 use actix_web::rt::Runtime;
 
-use crate::{prelude::*, get_port, routes::{register::{RegisterRequest, RegisterResponse}, heartbeat::HeartbeatRequest}};
+use crate::{prelude::*, get_port, routes::{register::{RegisterRequest, RegisterResponse}, heartbeat::{HeartbeatRequest, HeartbeatResponse}, request_vote::{ReqVoteRequest, ReqVoteResponse}, operation::{OperationRequest, OperationResponse}}};
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 pub enum NodeType {
   Follower,
@@ -21,13 +21,15 @@ pub struct NodeInfo {
   pub peers: Vec<String>,
   pub log: Vec<(i32, Operation)>,
   pub queue: Vec<String>,
+  pub election_status: bool
 }
 
 impl NodeInfo {
   pub fn new(address: String, leader: String) -> Self {
-    let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 300..500);
+    let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 1000..5000);
+    let time = SystemTime::now();
     NodeInfo {
-      last_heartbeat_received: SystemTime::now(),
+      last_heartbeat_received: time,
       election_timeout: Duration::from_millis(random_number),
       term: 0,
       address: address,
@@ -36,6 +38,7 @@ impl NodeInfo {
       peers: Vec::new(),
       log: Vec::new(),
       queue: Vec::new(),
+      election_status: false
     }
   }
 
@@ -62,6 +65,7 @@ impl NodeInfo {
             // println!("{:?}", register_response);
 
             if register_response.accepted {
+              self.last_heartbeat_received = SystemTime::now();
               self.term = register_response.term.clone();
               self.peers.push(self.leader.clone());
               for peer in register_response.peers {
@@ -88,38 +92,22 @@ impl NodeInfo {
     println!("- Term : {}", self.term.clone());
     println!("- Leader : {}", self.leader.clone());
     println!("- Peers : {:?}", self.peers.clone());
+    println!("- Log : {:?}", self.log.clone());
     println!("====================");
     
     let context: web::Data<Arc<Mutex<NodeInfo>>> = web::Data::new(Arc::new(Mutex::new(self.clone())));
     let context_service = context.clone();
+    
     std::thread::spawn(move || {
       loop {
-          let mut node = context.lock().unwrap();
-          match node.node_type {
-            NodeType::Follower =>  {
-              if SystemTime::now().duration_since(node.last_heartbeat_received).unwrap() > node.election_timeout {
-                node.node_type = NodeType::Candidate;
-                node.term += 1;
-                let mut runtime = Runtime::new().unwrap();
-                let results = runtime.block_on(post_many(node.peers.clone(), "/requestVote", &String::from("")));
-              }
-            },
-            NodeType::Leader => {
-              let mut heartbeat_request = HeartbeatRequest {
-                term: node.term.clone()
-              };
-              let mut runtime = Runtime::new().unwrap();
-              let results = runtime.block_on(post_many(node.peers.clone(), HEARTBEAT_ROUTE, &serde_json::to_string(&heartbeat_request).unwrap()));
-              for result in results {
-                match result {
-                  Ok(sk) => {
-                    println!("{:?}", sk);
-                  },
-                  Err(e) => {
-                    println!("{:?}", e);
-                  }
-                }
-              }
+        let mut node = context.lock().unwrap();
+        println!("heh");
+        match node.node_type {
+          NodeType::Follower =>  {
+            check_election_timeout(&mut node);
+          },
+          NodeType::Leader => {
+              heartbeat(node);
             },
             _ => {}
           }
@@ -129,8 +117,8 @@ impl NodeInfo {
   }
   
   fn run_service_thread(&mut self, context: web::Data<Arc<Mutex<NodeInfo>>>) {
+    
     System::new().block_on(async {
-        println!("Oke");
         let port = get_port();
         println!("RUNNING PORT: {}\n", port);
         HttpServer::new(move || {
@@ -149,5 +137,169 @@ impl NodeInfo {
         .run()
         .await
     }).unwrap();
+  }
+}
+
+fn heartbeat(mut node: std::sync::MutexGuard<NodeInfo>) {
+  let mut heartbeat_request = HeartbeatRequest {
+    term: node.term.clone(),
+    address: node.address.clone()
+  };
+  let mut runtime = Runtime::new().unwrap();
+  let results = runtime.block_on(post_many(node.peers.clone(), HEARTBEAT_ROUTE, &serde_json::to_string(&heartbeat_request).unwrap()));
+  println!("{:?}", node.peers);
+  let mut i = 0;
+  let mut new_peers = Vec::new();
+  for result in results {
+    match result {
+      Ok(sk) => {
+        let response = runtime.block_on(sk.json::<HeartbeatResponse>()).unwrap();
+        println!("{:?}", response);
+        new_peers.push(node.peers[i].clone());
+      },
+      Err(e) => {
+      }
+    }
+    i += 1;
+  }
+  node.peers = new_peers;
+}
+
+fn check_election_timeout(node: &mut std::sync::MutexGuard<NodeInfo>) {
+  if (SystemTime::now().duration_since(node.last_heartbeat_received).unwrap() > node.election_timeout) && !node.election_status {
+    node.node_type = NodeType::Candidate;
+    node.term += 1;
+
+    println!("Election timeout passed. New election leader begun.\n");
+
+    let mut runtime = Runtime::new().unwrap();
+    let mut request_vote = ReqVoteRequest {
+      candidate: node.address.clone(),
+      term: node.term.clone()
+    };
+    let mut success = 0;
+    let mut count = 0;
+    let results = runtime.block_on(post_many(node.peers.clone(), REQUEST_VOTE_ROUTE, &serde_json::to_string(&request_vote).unwrap()));
+    for result in results {
+      match result {
+        Ok(sk) => {
+          let response = runtime.block_on(sk.json::<ReqVoteResponse>()).unwrap();
+          println!("{:?}", response.accepted);
+          if (response.accepted) {
+            success += 1;
+          }
+          count += 1;
+          // println!("{:?}", response);
+        },
+        Err(e) => {
+          // println!("{:?}", e);
+        }
+      }
+    };
+
+    if success >= ((count/2)) {
+      node.leader = node.address.clone();
+
+      let change_leader_operation = &Operation {
+        operation_type: OperationType::ChangeLeader,
+        content: Some(String::from(node.leader.clone())),
+        is_committed: None
+      };
+
+      let mut last_log: Option<(i32, Operation)>;
+      if node.log.len() > 0 {
+        last_log = Some(node.log[node.log.len()-1].clone());
+      } else {
+        last_log = None;
+      }
+
+      let change_leader_request = &OperationRequest{
+        operations: vec![(node.term.clone(), change_leader_operation.clone())],
+        sender: node.address.clone(),
+        previous_log_entry: last_log.clone(),
+        term: node.term.clone(),
+      };
+
+      println!("Sending change leader request...\n");
+      let responses = runtime.block_on(post_many(node.peers.clone(), OPERATION_ROUTE, &serde_json::to_string(&change_leader_request).unwrap()));
+      
+      for response in responses {
+        match response {
+          Ok(sk) => {
+            let operation_response = runtime.block_on(sk.json::<OperationResponse>()).unwrap();
+            if operation_response.accepted {
+              count += 1;
+            } else if operation_response.note == "Error : Different last log" {
+              // check log (consistent/not) if inconsistent do operation until consistent then send response
+              println!("Error : Different last log");
+
+              let mut flag = false;
+              let mut log = node.log.clone();
+              let n = log.len() as i32;
+              let mut idx = n-1;
+              let mut operation_request: OperationRequest = OperationRequest{
+                operations: vec![(node.term.clone(), change_leader_operation.clone())],
+                sender: node.address.clone(),
+                previous_log_entry: last_log.clone(),
+                term: node.term.clone(),
+              };
+              if idx < 0 {
+                flag = true;
+              } else {
+                operation_request.operations.insert(0, log[idx as usize].clone());
+                idx -= 1;
+                if idx == -1 {
+                  last_log = None;
+                } else {
+                  last_log = Some(log[idx as usize].clone());
+                }
+              }  
+              while !flag {
+                let request = runtime.block_on(post(&operation_response.address, OPERATION_ROUTE, &serde_json::to_string(&operation_request).unwrap()));
+                match request {
+                  Ok(sk) => {
+                    // println!("{:?}", operation_request);
+                    let response = runtime.block_on(sk.json::<OperationResponse>()).unwrap();
+                    // println!("{:?}", response);
+                    if response.accepted {
+                      flag = true;
+                    } else {
+                      if idx < 0 {
+                        flag = true;
+                      } else {
+                        operation_request.operations.insert(0, log[idx as usize].clone());
+                        idx -= 1;
+                        // println!("{}", idx);
+                        if idx == -1 {
+                          last_log = None;
+                        } else {
+                          last_log = Some(log[idx as usize].clone());
+                        }
+                        operation_request.previous_log_entry = last_log.clone();
+                      }  
+                    }
+                  },
+                  Err(e) => {
+                    // println!("{:?}", e);
+                    flag = true;
+                  }
+                }
+              }
+            }
+          },
+          Err(e) => {
+            // print!("{:?}", e);
+          }
+        }
+      }
+
+      let term = node.term.clone();
+      node.node_type = NodeType::Leader;
+      node.log.push((term, change_leader_operation.clone()));
+
+      println!("Election leader stop. I am the new leader.");
+      return;
+      // println!("{:?}", node.term);
+    }
   }
 }
