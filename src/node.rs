@@ -2,7 +2,7 @@ use std::{sync::{Arc, Mutex}, thread, time::{Duration, SystemTime}, fmt};
 
 use actix_web::rt::Runtime;
 
-use crate::{prelude::*, get_port, routes::register::{RegisterRequest, RegisterResponse}};
+use crate::{prelude::*, get_port, routes::{register::{RegisterRequest, RegisterResponse}, heartbeat::HeartbeatRequest}};
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 pub enum NodeType {
   Follower,
@@ -111,6 +111,7 @@ impl NodeInfo {
             .route(REQUEST_VOTE_ROUTE, web::post().to(request_vote::request_vote))
             .route(REGISTER_ROUTE, web::post().to(register::register))
             .route(EXECUTE_ROUTE, web::post().to(execute::execute))
+            .route(HEARTBEAT_ROUTE, web::post().to(heartbeat::heartbeat))
         })
         .bind(self.address.clone())?
         .run()
@@ -132,7 +133,21 @@ impl NodeInfo {
                 }
               },
               NodeType::Leader => {
-                // heartbeat
+                let mut heartbeat_request = HeartbeatRequest {
+                  term: node.term.clone()
+                };
+                let mut runtime = Runtime::new().unwrap();
+                let results = runtime.block_on(post_many(node.peers.clone(), HEARTBEAT_ROUTE, &serde_json::to_string(&heartbeat_request).unwrap()));
+                for result in results {
+                  match result {
+                    Ok(sk) => {
+                      println!("{:?}", sk);
+                    },
+                    Err(e) => {
+                      println!("{:?}", e);
+                    }
+                  }
+                }
               },
               _ => {}
             }

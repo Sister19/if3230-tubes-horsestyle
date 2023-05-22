@@ -3,12 +3,12 @@ use std::{time::{Duration, SystemTime}, fmt};
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct HeartbeatRequest{
-  term: i32
+  pub term: i32
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct HeartbeatResponse{
-  accepted: bool
+  pub accepted: bool
 }
 
 // Asumsi : dikirimkan oleh leader doang
@@ -16,6 +16,8 @@ pub async fn heartbeat(context: web::Data<Arc<Mutex<NodeInfo>>>, heartbeat_reque
   let mut ctx = context.lock().unwrap();
   let mut resp:bool = false;
   let term = heartbeat_request.term.clone();
+  
+  println!("{:?}", ctx.last_heartbeat_received.elapsed().unwrap());
 
   if (ctx.term == term) {
     // Lanjut
