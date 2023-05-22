@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct OperationRequest {
-  pub operations: Vec<Operation>,
+  pub operations: Vec<(i32, Operation)>,
   pub sender: String,
   pub previous_log_entry: Option<(i32, Operation)>,
   pub term: i32
@@ -11,7 +11,8 @@ pub struct OperationRequest {
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct OperationResponse {
   pub accepted: bool,
-  pub note: String
+  pub note: String,
+  pub address: String
 }
 
 pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_request: web::Json<OperationRequest>) -> impl Responder {
@@ -31,6 +32,8 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
   println!("POST : Operation\n");
   println!("Sender : {}", sender);
   println!("Term : {}\n", term);
+  // println!("Log : {:?}\n", ctx.log.clone());
+  // println!("Prev Log : {:?}\n", previous_log_entry.clone());
 
   if sender != ctx.leader {
     result = false;
@@ -40,12 +43,18 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
       if ctx.node_type == NodeType::Candidate {
         result = false;
         note = format!("Error : I'm a new candidate");
-      } else if ctx.node_type == NodeType::Follower {
+      } else if ctx.node_type == NodeType::Follower || ctx.node_type == NodeType::Leader {
 
         // cek last log
+        // let n = ctx.log.len();
         let mut flag = false;
         if ctx.log.len() == 0 {
-          flag = true;
+          if previous_log_entry.is_none() {
+            flag = true;
+          } else {
+            flag = false;
+            note = format!("Error : Different last log");
+          }
         } else {
           let last_log = ctx.log[ctx.log.len()-1].clone();
           if (previous_log_entry.clone().unwrap().0 == last_log.0) && (previous_log_entry.clone().unwrap().1.is_equal(last_log.1.clone())) {
@@ -55,47 +64,41 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
             note = format!("Error : Different last log");
           }
         }
-        
-        println!("Operations running ...\n");
-        
+                
         // jika last log sama
         if flag {
+
+          println!("Operations running ...\n");
           
-          let mut new_idx: i32;
           for operation in operations {
-            new_idx = ctx.log.len() as i32;
-          
+            let new_operation = operation.clone();
             // execute operation
-            if operation.operation_type == OperationType::Queue {
+            if operation.1.operation_type == OperationType::Queue {
               
-              let new_operation = (new_idx, operation.clone());
-              ctx.log.push(new_operation);
-              let el = operation.content.unwrap();
+              let el = operation.1.content.unwrap();
               println!("Log : add enqueue \"{}\" to the queue\n", el);
   
-            } else if operation.operation_type == OperationType::Dequeue {
+            } else if operation.1.operation_type == OperationType::Dequeue {
               
-              let new_operation = (new_idx, operation.clone());
-              ctx.log.push(new_operation);
               println!("Log : add dequeue from the queue\n");
             
-            } else if operation.operation_type == OperationType::AddNode {
+            } else if operation.1.operation_type == OperationType::AddNode {
               
-              let node = operation.clone().content.unwrap();
+              let node = operation.clone().1.content.unwrap();
               ctx.peers.push(node.clone());
               println!("AddNode : add new node \"{}\" to peers", node);
               println!("Peers : {:?}\n", ctx.peers.clone());
             
-            } else if operation.operation_type == OperationType::ChangeLeader {
+            } else if operation.1.operation_type == OperationType::ChangeLeader {
               
-              let new_leader = operation.clone().content.unwrap();
+              let new_leader = operation.clone().1.content.unwrap();
               let old_leader = ctx.leader.clone();
               let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 300..500);
               ctx.leader = new_leader.clone();
               ctx.election_timeout = Duration::from_millis(random_number);
               println!("ChangeLeader : change leader from \"{}\" to \"{}\"\n", old_leader, new_leader);
             
-            } else if operation.operation_type == OperationType::Commit {
+            } else if operation.1.operation_type == OperationType::Commit {
               
               let last_log_idx = ctx.log.len()-1;
               if ctx.log[last_log_idx].1.operation_type == OperationType::Queue {
@@ -109,15 +112,18 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
               ctx.log[last_log_idx].1.is_committed = Some(true);
               println!("Commit : Commit applied \nQueue : {:?}\n", ctx.queue);
   
-            } else if operation.operation_type == OperationType::None {
+            } else if operation.1.operation_type == OperationType::None {
               println!("None\n");
             }
-  
+            
+            ctx.log.push(new_operation);
+            
           }
 
           result = true;
           note = format!("Operation Success");
           println!("Operations end.\n");
+          // println!("Log : {:?}\n", ctx.log);
         }
 
       } else {
@@ -133,6 +139,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
   // response
   HttpResponse::Ok().body(serde_json::to_string(&OperationResponse { 
     accepted: result,
-    note: note
+    note: note,
+    address: ctx.address.clone()
     }).unwrap())
 }

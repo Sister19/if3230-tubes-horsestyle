@@ -35,11 +35,22 @@ pub async fn register(context: web::Data<Arc<Mutex<NodeInfo>>>, new_node: web::J
         content: Some(String::from(new_node.sender.clone())),
         is_committed: None
     };
+
     if ctx.address == ctx.leader {
+      
+      let n = ctx.log.len().clone();
+      
+      let mut last_log: Option<(i32, Operation)>;
+      if ctx.log.len() > 0 {
+        last_log = Some(ctx.log[ctx.log.len()-1].clone());
+      } else {
+        last_log = None;
+      }
+        
         let add_node_request = &OperationRequest{
-            operations: vec![add_node_operation.clone()],
+            operations: vec![(ctx.term.clone(), add_node_operation.clone())],
             sender: ctx.address.clone(),
-            previous_log_entry: None,
+            previous_log_entry: last_log.clone(),
             term: ctx.term.clone(),
         };
 
@@ -52,6 +63,60 @@ pub async fn register(context: web::Data<Arc<Mutex<NodeInfo>>>, new_node: web::J
               let operation_response = sk.json::<OperationResponse>().await.unwrap();
               if operation_response.accepted {
                 count += 1;
+              } else if operation_response.note == "Error : Different last log" {
+                // check log (consistent/not) if inconsistent do operation until consistent then send response
+                let mut flag = false;
+                let mut log = ctx.log.clone();
+                let n = log.len() as i32;
+                let mut idx = n-1;
+                let mut operation_request: OperationRequest = OperationRequest{
+                  operations: vec![(ctx.term.clone(), add_node_operation.clone())],
+                  sender: ctx.address.clone(),
+                  previous_log_entry: last_log.clone(),
+                  term: ctx.term.clone(),
+                };
+                if idx < 0 {
+                  flag = true;
+                } else {
+                  operation_request.operations.insert(0, log[idx as usize].clone());
+                  idx -= 1;
+                  if idx == -1 {
+                    last_log = None;
+                  } else {
+                    last_log = Some(log[idx as usize].clone());
+                  }
+                }  
+                while !flag {
+                  let request = post(&operation_response.address, OPERATION_ROUTE, &serde_json::to_string(&operation_request).unwrap()).await;
+                  match request {
+                    Ok(sk) => {
+                      // println!("{:?}", operation_request);
+                      let response = sk.json::<OperationResponse>().await.unwrap();
+                      // println!("{:?}", response);
+                      if response.accepted {
+                        flag = true;
+                      } else {
+                        if idx < 0 {
+                          flag = true;
+                        } else {
+                          operation_request.operations.insert(0, log[idx as usize].clone());
+                          idx -= 1;
+                          // println!("{}", idx);
+                          if idx == -1 {
+                            last_log = None;
+                          } else {
+                            last_log = Some(log[idx as usize].clone());
+                          }
+                          operation_request.previous_log_entry = last_log.clone();
+                        }  
+                      }
+                    },
+                    Err(e) => {
+                      println!("{:?}", e);
+                      flag = true;
+                    }
+                  }
+                }
               }
             },
             Err(e) => {
@@ -60,15 +125,18 @@ pub async fn register(context: web::Data<Arc<Mutex<NodeInfo>>>, new_node: web::J
           }
         }
 
+        let term = ctx.term.clone();
+        ctx.log.push((term, add_node_operation.clone()));
         ctx.peers.push(new_node.sender.clone());
-        res = true;
-        // TODO: check log (consistent/not) if inconsistent do operation until consistent then send response
+        res = true;        
+
     } else {
         res = false;
     }
     
     println!("Register node {} success.\n", new_node.sender.clone());
     println!("Peers : {:?}\n", ctx.peers.clone());
+    // println!("Log : {:?}\n", ctx.log.clone());
 
     HttpResponse::Ok().body(serde_json::to_string(&RegisterResponse {
       accepted: res,
