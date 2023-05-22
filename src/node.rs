@@ -152,6 +152,7 @@ fn heartbeat(mut node: std::sync::MutexGuard<NodeInfo>) {
     match result {
       Ok(sk) => {
         let response = runtime.block_on(sk.json::<HeartbeatResponse>()).unwrap();
+        new_peers.push(node.peers[i].clone());
       },
       Err(e) => {
       }
