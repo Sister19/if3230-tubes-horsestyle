@@ -1,6 +1,12 @@
 use crate::prelude::*;
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
+pub enum OperationError{
+  InconsistentLog,
+  None
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct OperationRequest {
   pub operations: Vec<Operation>,
   pub sender: String,
@@ -11,6 +17,7 @@ pub struct OperationRequest {
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct OperationResponse {
   pub accepted: bool,
+  pub flag: OperationError,
   pub note: String
 }
 
@@ -26,6 +33,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
   // initialize response
   let mut result = false;
   let mut note = String::new();
+  let mut err_operation = OperationError::None;;
 
   println!("====================");
   println!("POST : Operation\n");
@@ -52,6 +60,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
             flag = true;
           } else {
             result = false;
+            err_operation = OperationError::InconsistentLog;
             note = format!("Error : Different last log");
           }
         }
@@ -133,6 +142,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
   // response
   HttpResponse::Ok().body(serde_json::to_string(&OperationResponse { 
     accepted: result,
+    flag: err_operation,
     note: note
     }).unwrap())
 }
