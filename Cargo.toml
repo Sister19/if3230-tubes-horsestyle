@@ -1,0 +1,31 @@
+[package]
+name = "if3230-tubes-horsestyle"
+version = "0.1.0"
+edition = "2021"
+default-run = "server"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4"
+reqwest ={ version = "0.11.18", features = ["blocking", "json"]}
+serde = { version = "1.0.163", features= ["derive"]} 
+serde_json = "1.0.96"
+futures = "0.3"
+rand = "0.8"
+tui = "0.19.0"
+crossterm = "0.26.1"
+csv = "1.1"
+tokio = { version = "1", features = ["full"] }
+
+[[bin]]
+name = "dashboard"
+path = "dashboard/main.rs"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
+[[bin]]
+name = "client"
+path = "client/main.rs"

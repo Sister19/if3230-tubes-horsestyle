@@ -1,0 +1,45 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'if3230-tubes-horsestyle'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=if3230-tubes-horsestyle",
+          "--package=if3230-tubes-horsestyle"
+        ],
+        "filter": {
+          "name": "if3230-tubes-horsestyle",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'if3230-tubes-horsestyle'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=if3230-tubes-horsestyle",
+          "--package=if3230-tubes-horsestyle"
+        ],
+        "filter": {
+          "name": "if3230-tubes-horsestyle",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
