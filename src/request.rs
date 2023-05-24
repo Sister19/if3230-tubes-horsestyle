@@ -14,7 +14,7 @@ pub async fn get(address: String, path: String) -> Result<Response, Box<dyn Erro
 
 
 pub async fn post(address: &str, path: &str, body: &str) -> Result<Response, Box<dyn Error>> {
-  let client = Client::new();
+  let client = Client::builder().timeout(Duration::from_secs(20)).build().unwrap();
   let url = format!("http://{}{}", address, path);
   // println!("{}", url);
   // println!("{}", body);

@@ -14,7 +14,8 @@ pub struct ReqVoteResponse {
 }
 
 pub async fn request_vote(context: web::Data<Arc<Mutex<NodeInfo>>>, reqvote_request: web::Json<ReqVoteRequest>) -> impl Responder {
-    let mut ctx = context.lock().unwrap();
+    let c = context.lock();
+    let mut ctx = c.unwrap();
 
     let candidate = reqvote_request.candidate.clone();
     let term = reqvote_request.term.clone();
@@ -40,7 +41,7 @@ pub async fn request_vote(context: web::Data<Arc<Mutex<NodeInfo>>>, reqvote_requ
     if ctx.node_type.clone() == NodeType::Candidate {
         ctx.node_type = NodeType::Follower;
         ctx.term -= 1;
-        let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 1000..5000);
+        let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 30000..45000);
         ctx.last_heartbeat_received = SystemTime::now();
         ctx.election_timeout = Duration::from_millis(random_number);
     }

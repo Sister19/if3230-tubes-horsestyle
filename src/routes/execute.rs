@@ -30,8 +30,9 @@ pub struct ExecuteResponse{
 
 // Prekondisi : operation_to_execute nya hanya Queue dan Dequeue
 pub async fn execute(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_to_execute: web::Json<ExecuteRequest>) -> impl Responder {
-  let mut ctx = context.lock().unwrap();
-  
+  let c = context.lock();
+  let mut ctx = c.unwrap();
+
   println!("====================");
   println!("EXECUTE : Operation\n");
   println!("Operation : {:?}", operation_to_execute.operation_type.clone());
@@ -146,14 +147,14 @@ pub async fn execute(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_to_exec
         let mut el = "".to_string();
         if ctx.queue.len() > 0 {
           el = ctx.queue.remove(0);
+          dequeue_content = Some(el.clone());
+          println!("Queue : dequeue {} from the queue\n", el);
         } else {
           return HttpResponse::Ok().body(serde_json::to_string(&ExecuteResponse { 
             accepted: false,
             content: Some("Queue is empty".to_string())
           }).unwrap());
         }
-        dequeue_content = Some(el.clone());
-        println!("Queue : dequeue {} from the queue\n", el);
       }
       ctx.log[last_log_idx].1.is_committed = Some(true);
       println!("Commit : Commit applied \nQueue : {:?}\n", ctx.queue);

@@ -27,7 +27,8 @@ pub struct OperationResponse {
 
 pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_request: web::Json<OperationRequest>) -> impl Responder {
   // unwrap
-  let mut ctx = context.lock().unwrap();
+  let c = context.lock();
+  let mut ctx = c.unwrap();
 
   let operations = operation_request.operations.clone();
   let sender = operation_request.sender.clone();
@@ -113,7 +114,7 @@ pub async fn operation(context: web::Data<Arc<Mutex<NodeInfo>>>, operation_reque
               ctx.election_status = false;
               let new_leader = operation.clone().1.content.unwrap();
               let old_leader = ctx.leader.clone();
-              let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 2000..3000);
+              let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 30000..45000);
               ctx.leader = new_leader.clone();
               ctx.election_timeout = Duration::from_millis(random_number);
               

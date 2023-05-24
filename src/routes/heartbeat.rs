@@ -14,7 +14,8 @@ pub struct HeartbeatResponse{
 
 // Asumsi : dikirimkan oleh leader doang
 pub async fn heartbeat(context: web::Data<Arc<Mutex<NodeInfo>>>, heartbeat_request: web::Json<HeartbeatRequest>) -> impl Responder {
-  let mut ctx = context.lock().unwrap();
+  let c = context.lock();
+  let mut ctx = c.unwrap();
   let mut resp:bool = false;
   let term = heartbeat_request.term.clone();
   let address = heartbeat_request.address.clone();

@@ -19,7 +19,8 @@ pub struct RegisterRequest {
 }
 
 pub async fn register(context: web::Data<Arc<Mutex<NodeInfo>>>, new_node: web::Json<RegisterRequest>) -> impl Responder {
-    let mut ctx = context.lock().unwrap();
+    let c = context.lock();
+    let mut ctx = c.unwrap();
 
     let peers = ctx.peers.clone();
 

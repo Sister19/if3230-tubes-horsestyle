@@ -26,7 +26,7 @@ pub struct NodeInfo {
 
 impl NodeInfo {
   pub fn new(address: String, leader: String) -> Self {
-    let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 3000..7000);
+    let random_number = rand::Rng::gen_range(&mut rand::thread_rng(), 30000..45000);
     let time = SystemTime::now();
     NodeInfo {
       last_heartbeat_received: time,
@@ -61,7 +61,8 @@ impl NodeInfo {
       match result {
         Ok(sk) => { 
           System::new().block_on(async {
-            let register_response = sk.json::<RegisterResponse>().await.unwrap();
+            let temp = sk.json::<RegisterResponse>().await;
+            let register_response = temp.unwrap();
             // println!("{:?}", register_response);
 
             if register_response.accepted {
@@ -106,7 +107,9 @@ impl NodeInfo {
             check_election_timeout(&mut node);
           },
           NodeType::Leader => {
+            if node.last_heartbeat_received.elapsed().unwrap() > Duration::from_millis(2000) {
               heartbeat(node);
+            }
             },
             _ => {}
           }
@@ -151,7 +154,7 @@ fn heartbeat(mut node: std::sync::MutexGuard<NodeInfo>) {
   for result in results {
     match result {
       Ok(sk) => {
-        let response = runtime.block_on(sk.json::<HeartbeatResponse>()).unwrap();
+        // let response = runtime.block_on(sk.json::<HeartbeatResponse>()).unwrap();
         new_peers.push(node.peers[i].clone());
       },
       Err(e) => {
@@ -160,6 +163,7 @@ fn heartbeat(mut node: std::sync::MutexGuard<NodeInfo>) {
     i += 1;
   }
   node.peers = new_peers;
+  node.last_heartbeat_received = SystemTime::now();
 }
 
 fn check_election_timeout(node: &mut std::sync::MutexGuard<NodeInfo>) {
@@ -223,7 +227,8 @@ fn check_election_timeout(node: &mut std::sync::MutexGuard<NodeInfo>) {
       for response in responses {
         match response {
           Ok(sk) => {
-            let operation_response = runtime.block_on(sk.json::<OperationResponse>()).unwrap();
+            let temp = runtime.block_on(sk.json::<OperationResponse>());
+            let operation_response = temp.unwrap();
             if operation_response.accepted {
               count += 1;
             } else if operation_response.note == "Error : Different last log" {
